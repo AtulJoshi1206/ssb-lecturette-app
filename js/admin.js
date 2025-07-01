@@ -1,9 +1,13 @@
+// js/admin.js
+
 document.addEventListener('DOMContentLoaded', () => {
     // Security check
     if (sessionStorage.getItem('isAdminLoggedIn') !== 'true') {
         window.location.href = 'admin-login.html';
         return;
     }
+
+    const API_URL = 'http://localhost:3000/api/lecturettes';
 
     // --- DOM Elements ---
     const logoutBtn = document.getElementById('logout-btn');
@@ -16,7 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelBtn = document.getElementById('cancel-btn');
     const successMessage = document.getElementById('success-message');
     
-    // --- Form Inputs ---
     const topicNameInput = document.getElementById('topicName');
     const topicContentInput = document.getElementById('topicContent');
     const editLecturetteId = document.getElementById('edit-lecturette-id');
@@ -28,21 +31,25 @@ document.addEventListener('DOMContentLoaded', () => {
         renderLecturettes();
     };
 
-    const showFormView = (mode = 'add', index = null) => {
+    const showFormView = async (mode = 'add', lecturetteId = null) => {
         lecturetteListView.style.display = 'none';
         lecturetteFormView.style.display = 'block';
         addLecturetteForm.reset();
         successMessage.textContent = '';
         
         if (mode === 'edit') {
-            const lecturettes = getLecturettes();
-            const lecturette = lecturettes[index];
-            
-            formTitle.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Edit Lecturette';
-            topicNameInput.value = lecturette.topic;
-            topicContentInput.value = lecturette.content;
-            editLecturetteId.value = index;
-            addLecturetteForm.querySelector('button[type="submit"]').textContent = 'Update Lecturette';
+            // Fetch the specific lecturette data from the API
+            const res = await fetch(`${API_URL}`);
+            const lecturettes = await res.json();
+            const lecturette = lecturettes.find(l => l._id === lecturetteId);
+
+            if(lecturette) {
+                formTitle.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Edit Lecturette';
+                topicNameInput.value = lecturette.topic;
+                topicContentInput.value = lecturette.content;
+                editLecturetteId.value = lecturette._id; // Use the MongoDB _id
+                addLecturetteForm.querySelector('button[type="submit"]').textContent = 'Update Lecturette';
+            }
         } else {
             formTitle.innerHTML = '<i class="fa-solid fa-plus-circle"></i> Add a New Lecturette';
             editLecturetteId.value = '';
@@ -50,34 +57,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Data Functions ---
-    const getLecturettes = () => JSON.parse(localStorage.getItem('lecturettes')) || [];
+    // --- Data Functions using API ---
+    const renderLecturettes = async () => {
+        try {
+            const response = await fetch(API_URL);
+            if (!response.ok) throw new Error('Failed to fetch lecturettes');
+            const lecturettes = await response.json();
+            
+            lecturetteListAdmin.innerHTML = '';
+            if (lecturettes.length === 0) {
+                lecturetteListAdmin.innerHTML = '<p class="empty-list-msg">No lecturettes found. Add one to get started!</p>';
+                return;
+            }
 
-    const saveLecturettes = (lecturettes) => {
-        localStorage.setItem('lecturettes', JSON.stringify(lecturettes));
-    };
-
-    const renderLecturettes = () => {
-        lecturetteListAdmin.innerHTML = '';
-        const lecturettes = getLecturettes();
-
-        if (lecturettes.length === 0) {
-            lecturetteListAdmin.innerHTML = '<p class="empty-list-msg">No lecturettes found. Add one to get started!</p>';
-            return;
+            lecturettes.forEach((lecturette) => {
+                const item = document.createElement('div');
+                item.className = 'lecturette-admin-item';
+                item.innerHTML = `
+                    <span class="topic-title">${lecturette.topic}</span>
+                    <div class="item-actions">
+                        <button class="edit-btn" data-id="${lecturette._id}"><i class="fa-solid fa-pen"></i> Edit</button>
+                        <button class="delete-btn" data-id="${lecturette._id}"><i class="fa-solid fa-trash"></i> Delete</button>
+                    </div>
+                `;
+                lecturetteListAdmin.appendChild(item);
+            });
+        } catch (error) {
+            lecturetteListAdmin.innerHTML = `<p class="empty-list-msg" style="color: red;">Error: ${error.message}</p>`;
         }
-
-        lecturettes.forEach((lecturette, index) => {
-            const item = document.createElement('div');
-            item.className = 'lecturette-admin-item';
-            item.innerHTML = `
-                <span class="topic-title">${lecturette.topic}</span>
-                <div class="item-actions">
-                    <button class="edit-btn" data-index="${index}"><i class="fa-solid fa-pen"></i> Edit</button>
-                    <button class="delete-btn" data-index="${index}"><i class="fa-solid fa-trash"></i> Delete</button>
-                </div>
-            `;
-            lecturetteListAdmin.appendChild(item);
-        });
     };
     
     // --- Event Listeners ---
@@ -90,45 +97,52 @@ document.addEventListener('DOMContentLoaded', () => {
     cancelBtn.addEventListener('click', showListView);
 
     lecturetteListAdmin.addEventListener('click', (e) => {
-        const index = e.target.closest('button')?.dataset.index;
-        if (index === undefined) return;
+        const targetButton = e.target.closest('button');
+        if (!targetButton) return;
+        const lecturetteId = targetButton.dataset.id;
 
-        if (e.target.closest('.edit-btn')) {
-            showFormView('edit', index);
-        } else if (e.target.closest('.delete-btn')) {
+        if (targetButton.classList.contains('edit-btn')) {
+            showFormView('edit', lecturetteId);
+        } else if (targetButton.classList.contains('delete-btn')) {
             if (confirm('Are you sure you want to delete this lecturette?')) {
-                const lecturettes = getLecturettes();
-                lecturettes.splice(index, 1);
-                saveLecturettes(lecturettes);
-                renderLecturettes();
+                fetch(`${API_URL}/${lecturetteId}`, { method: 'DELETE' })
+                    .then(res => {
+                        if(!res.ok) throw new Error('Failed to delete');
+                        renderLecturettes();
+                    })
+                    .catch(err => console.error(err));
             }
         }
     });
 
-    addLecturetteForm.addEventListener('submit', (e) => {
+    addLecturetteForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const lecturettes = getLecturettes();
         const lecturetteData = {
             topic: topicNameInput.value,
             content: topicContentInput.value
         };
+        const id = editLecturetteId.value;
+        const isEditing = id !== '';
+        
+        const url = isEditing ? `${API_URL}/${id}` : API_URL;
+        const method = isEditing ? 'PUT' : 'POST';
 
-        if (editLecturetteId.value !== '') {
-            // Edit mode
-            lecturettes[editLecturetteId.value] = lecturetteData;
-        } else {
-            // Add mode
-            lecturettes.push(lecturetteData);
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(lecturetteData)
+            });
+
+            if (!response.ok) throw new Error('Failed to save lecturette');
+
+            successMessage.textContent = 'Lecturette saved successfully!';
+            setTimeout(showListView, 1500);
+        } catch (error) {
+            successMessage.textContent = `Error: ${error.message}`;
+            successMessage.style.color = 'red';
         }
-        
-        saveLecturettes(lecturettes);
-        successMessage.textContent = 'Lecturette saved successfully!';
-        
-        setTimeout(() => {
-            showListView();
-        }, 1500);
     });
 
-    // --- Initial Load ---
     showListView();
 });
