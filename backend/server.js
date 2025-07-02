@@ -22,7 +22,6 @@ console.log('✅ Dependencies loaded (express, mongoose, cors, path).');
 const mongoUri = process.env.MONGO_URI;
 if (!mongoUri || mongoUri === 'your_connection_string') {
   console.error('❌ FATAL: MONGO_URI is not defined or is not set in your .env file.');
-  console.log('Please ensure your .env file has a line like: MONGO_URI=mongodb+srv://...');
   process.exit(1);
 }
 console.log('✅ MONGO_URI found.');
@@ -40,15 +39,13 @@ app.use(express.json());
 mongoose.connect(mongoUri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-}).then(() => {
-  console.log('✅ MongoDB connected.');
-}).catch((err) => {
-  console.error('❌ MongoDB connection failed:', err);
-});
+})
+.then(() => console.log('✅ MongoDB connected.'))
+.catch(err => console.error('❌ MongoDB connection failed:', err));
 
-// 7. Serve static frontend (move up from backend/)
-const rootDir = path.join(__dirname, '..'); // go one level up
-app.use(express.static(rootDir)); // serve all static files
+// 7. Serve static frontend files (from root)
+const rootDir = path.join(__dirname, '..');
+app.use(express.static(rootDir));
 
 // 8. Routes for HTML files
 app.get('/', (req, res) => {
@@ -67,12 +64,17 @@ app.get('/lecturette', (req, res) => {
   res.sendFile(path.join(rootDir, 'lecturette-view.html'));
 });
 
-// 9. API test route (optional)
+// 9. API Test route (you can add more APIs below)
 app.get('/api/test', (req, res) => {
   res.json({ success: true, message: 'Backend is working!' });
 });
 
-// 10. Start server
+// 10. Fallback (for React-SPA-style routing, optional)
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(rootDir, 'index.html'));
+// });
+
+// 11. Start the server
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
