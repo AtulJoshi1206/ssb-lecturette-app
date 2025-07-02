@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   // ✅ Use deployed Render API URL
-  const API_URL = 'https://ssb-lecturette-app.onrender.com/api/lecturettes';
+  const API_URL = 'https://ssb-lecturette-app.onrender.com/';
 
   if (document.getElementById('topic-list')) {
     initGuestIndex();
