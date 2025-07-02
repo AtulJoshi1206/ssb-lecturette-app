@@ -6,7 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // 🌐 Correct API URL for deployed backend
-  const API_URL = 'https://ssb-lecturette-app.onrender.com/';
+  const API_URL = 'https://ssb-lecturette-app.onrender.com/api/lecturettes';
+
 
   // --- DOM Elements ---
   const logoutBtn = document.getElementById('logout-btn');
