@@ -1,94 +1,86 @@
-// js/guest.js
-
 document.addEventListener('DOMContentLoaded', () => {
-    const API_URL = 'http://localhost:3000/api/lecturettes';
+  // ✅ Use deployed Render API URL
+  const API_URL = 'https://ssb-lecturette-app.onrender.com/api/lecturettes';
 
-    if (document.getElementById('topic-list')) {
-        initGuestIndex();
-    } else if (document.getElementById('lecturette-title')) {
-        initLecturetteView();
+  if (document.getElementById('topic-list')) {
+    initGuestIndex();
+  } else if (document.getElementById('lecturette-title')) {
+    initLecturetteView();
+  }
+
+  // 🔁 Fetch all lecturettes
+  async function fetchAllLecturettes() {
+    try {
+      const response = await fetch(API_URL);
+      if (!response.ok) throw new Error('Network response was not ok');
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to fetch lecturettes:', error);
+      return []; // Return empty array on error
     }
+  }
 
-    async function fetchAllLecturettes() {
-        try {
-            const response = await fetch(API_URL);
-            if (!response.ok) throw new Error('Network response was not ok');
-            return await response.json();
-        } catch (error) {
-            console.error('Failed to fetch lecturettes:', error);
-            return []; // Return empty array on error
-        }
-    }
+  // 📚 Show topic list
+  async function initGuestIndex() {
+    const topicList = document.getElementById('topic-list');
+    const searchBar = document.getElementById('search-bar');
+    const allLecturettes = await fetchAllLecturettes();
 
-    async function initGuestIndex() {
-        const topicList = document.getElementById('topic-list');
-        const searchBar = document.getElementById('search-bar');
-        const allLecturettes = await fetchAllLecturettes();
+    function displayTopics(topics) {
+      topicList.innerHTML = '';
+      if (topics.length === 0) {
+        topicList.innerHTML = '<p>No lecturette topics available yet.</p>';
+        return;
+      }
 
-        function displayTopics(topics) {
-            topicList.innerHTML = '';
-            if (topics.length === 0) {
-                topicList.innerHTML = '<p>No lecturette topics available yet.</p>';
-                return;
-            }
-            topics.forEach((lecturette) => {
-                // We will pass the whole object via localStorage for the next page to use
-                // This avoids making a second API call for a single item
-                const topicLink = document.createElement('a');
-                topicLink.href = `lecturette-view.html?id=${lecturette._id}`;
-                topicLink.className = 'topic-item';
-                topicLink.textContent = lecturette.topic;
-                topicLink.addEventListener('click', () => {
-                    // Temporarily store the clicked item's data for the view page
-                    sessionStorage.setItem('selectedLecturette', JSON.stringify(lecturette));
-                });
-                topicList.appendChild(topicLink);
-            });
-        }
+      topics.forEach((lecturette) => {
+        const div = document.createElement('div');
+        div.className = 'topic-card';
+        div.innerHTML = `
+          <h3>${lecturette.topicName}</h3>
+          <button class="view-btn">View</button>
+        `;
 
-        displayTopics(allLecturettes);
-
-        searchBar.addEventListener('keyup', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const filteredTopics = allLecturettes.filter(l => l.topic.toLowerCase().includes(searchTerm));
-            displayTopics(filteredTopics);
-        });
-    }
-
-    function initLecturetteView() {
-        const titleEl = document.getElementById('lecturette-title');
-        const textEl = document.getElementById('lecturette-text');
-        const ttsButton = document.getElementById('tts-button');
-
-        // Get lecturette data from sessionStorage (set in initGuestIndex)
-        const lecturette = JSON.parse(sessionStorage.getItem('selectedLecturette'));
-
-        if (lecturette) {
-            titleEl.textContent = lecturette.topic;
-            textEl.textContent = lecturette.content;
-            sessionStorage.removeItem('selectedLecturette'); // Clean up
-        } else {
-            titleEl.textContent = 'Topic Not Found';
-            textEl.textContent = 'The requested lecturette could not be found. Please go back to the topic list.';
-        }
-
-        ttsButton.addEventListener('click', () => {
-            const synth = window.speechSynthesis;
-            const textToSpeak = `${lecturette.topic}. ${lecturette.content}`;
-            if (synth.speaking) {
-                synth.cancel();
-                ttsButton.classList.remove('speaking');
-                return;
-            }
-            if (textToSpeak.trim() !== '') {
-                const utterance = new SpeechSynthesisUtterance(textToSpeak);
-                utterance.onstart = () => ttsButton.classList.add('speaking');
-                utterance.onend = () => ttsButton.classList.remove('speaking');
-                utterance.onerror = () => ttsButton.classList.remove('speaking');
-                synth.speak(utterance);
-            }
+        div.querySelector('.view-btn').addEventListener('click', () => {
+          localStorage.setItem('selectedLecturette', JSON.stringify(lecturette));
+          window.location.href = 'lecturette-view.html';
         });
 
-        window.addEventListener('beforeunload', () => window.speechSynthesis.cancel());
+        topicList.appendChild(div);
+      });
     }
+
+    // 🔍 Search functionality
+    searchBar.addEventListener('input', () => {
+      const query = searchBar.value.toLowerCase();
+      const filtered = allLecturettes.filter((l) =>
+        l.topicName.toLowerCase().includes(query)
+      );
+      displayTopics(filtered);
+    });
+
+    displayTopics(allLecturettes);
+  }
+
+  // 📖 Lecturette detail page
+  function initLecturetteView() {
+    const lecturette = JSON.parse(localStorage.getItem('selectedLecturette'));
+    if (!lecturette) {
+      window.location.href = 'guest-index.html';
+      return;
+    }
+
+    document.getElementById('lecturette-title').textContent = lecturette.topicName;
+    document.getElementById('lecturette-content').textContent = lecturette.topicContent;
+
+    const speakerBtn = document.getElementById('speak-btn');
+    const synth = window.speechSynthesis;
+
+    speakerBtn.addEventListener('click', () => {
+      const utterance = new SpeechSynthesisUtterance(lecturette.topicContent);
+      utterance.lang = 'en-IN'; // Indian English
+      synth.cancel(); // Stop previous
+      synth.speak(utterance);
+    });
+  }
 });
